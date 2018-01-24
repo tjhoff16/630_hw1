@@ -21,44 +21,43 @@ class TSV_row():
 def open_tsv(fl):
     rdata=[]
     f= open (fl, 'r', encoding='utf-8')
-    for r in f.readlines():
-        rdata.append(re.split('\t', r.replace('\n', '')))
+    for r in f.readlines(): rdata.append(re.split('\t', r.replace('\n', '')))
     print (len(rdata))
     return rdata
 
 def tokenize (st):
-    return re.split('\W+', st)
+    return re.split('\s+', st)
 
 def generate_list_of_instances(tsv, better_tokenize=False):
     return [TSV_row(x, better_tokenize) for x in tsv][1:]
 
 def train(tweets, smoothing_alpha=0):
-    tot, hate_words, not_hate_words, hct, nhct, ct = len(tweets), {}, {}, 0, 0, 0
+    tot, hate_words, not_hate_words, ct = len(tweets), {}, {}, 0
     for e in tweets:
         if e.classifier == '1':
             ct+=1
-            for w in e.tokens:
-                hate_words[w] = hate_words.get(w, 0)+1
-                hct+=1
+            for w in e.tokens: hate_words[w] = hate_words.get(w, 0)+1
         else:
-            for w in e.tokens:
-                not_hate_words[w] = not_hate_words.get(w, 0)+1
-                nhct+=1
+            for w in e.tokens: not_hate_words[w] = not_hate_words.get(w, 0)+1
+    nhct = sum(not_hate_words.values())
+    hct = sum(hate_words.values())
     pH, pNH = ct/tot, (tot-ct)/tot
-    return tot, pH, pNH, hct, nhct, not_hate_words, hate_words, smoothing_alpha
+    total_words = len({**hate_words, **not_hate_words})
+    print (total_words)
+    return total_words, pH, pNH, hct, nhct, not_hate_words, hate_words, smoothing_alpha
 
 def pWord(word, hate, smoothing_alpha):
-    if hate: return (hw.get(word,0)+smoothing_alpha)/(hct+smoothing_alpha*tot)
-    return (nhw.get(word,0)+smoothing_alpha)/(nhct+smoothing_alpha*tot)
+    if hate: return np.log((hw.get(word,0)+smoothing_alpha)/(hct+smoothing_alpha*total_words))
+    return np.log((nhw.get(word,0)+smoothing_alpha)/(nhct+smoothing_alpha*total_words))
 
 def pTweet(message, hate, smoothing_alpha):
     r = 1.0
-    for w in message: r *= pWord(w, hate, smoothing_alpha)
+    for w in message: r += pWord(w, hate, smoothing_alpha)
     return r
 
 def classify(message, pH, pNH, smoothing_alpha=0, testing=False):
-    isHate = pH*pTweet(message.tokens, True, smoothing_alpha)
-    notHate = pNH*pTweet(message.tokens, False, smoothing_alpha)
+    isHate = np.log(pH)+pTweet(message.tokens, True, smoothing_alpha)
+    notHate = np.log(pNH)+pTweet(message.tokens, False, smoothing_alpha)
     if testing:
         if isHate > notHate: cs = '1'
         else: cs = '0'
@@ -68,16 +67,19 @@ def classify(message, pH, pNH, smoothing_alpha=0, testing=False):
     else: return isHate > notHate
 
 def better_tokenize(st):
+    with open('stopwords', 'r') as f: stwds = f.read().split('\n')
+    stopwords=[re.sub('[^\w\s\d]','',s.lower()) for s in stwds]
     exclude = set(string.punctuation)
     st=st.lower()
-    return re.split('\W+',''.join(ch for ch in st if ch not in exclude))
+    st= set(re.split('\s+',''.join(ch for ch in st if ch not in exclude)))
+    return [w for w in st if w not in stopwords]
 
 fl = open_tsv('train.tsv')
 wds = generate_list_of_instances(fl, better_tokenize=True)
 ffl = open_tsv('dev.tsv')
 tts = generate_list_of_instances(ffl, better_tokenize=True)
-rng=0.043
-tot, pH, pNH, hct, nhct, nhw, hw, sma = train(wds, smoothing_alpha=rng)
+rng=.6
+total_words, pH, pNH, hct, nhct, nhw, hw, sma = train(wds, smoothing_alpha=rng)
 y_true=[]
 y_pred=[]
 tot_right=0
@@ -90,12 +92,18 @@ for e in tts:
         tot_right+=1
         y_pred.append(x[1])
     else:
-        if x[1] == '1':
-            y_pred.append(0)
-        else:
-            y_pred.append(1)
+        if x[1] == '1': y_pred.append(0)
+        else: y_pred.append(1)
 score = f1_score(y_true, y_pred, average='weighted')
-print (score, rng, tot, tot_right)
+print (score, rng, total_words, tot_right)
+
+val = max(hw.values())
+for k,v in hw.items():
+    if v == val:
+        print (k, v)
+
+
+
 
 def sigmoid(X):
     '''Compute the sigmoid function '''
@@ -103,7 +111,7 @@ def sigmoid(X):
     den = 1.0 + e ** (-1.0 * X)
     d = 1.0 / den
     return d
-#
+
 def compute_cost(theta,X,y): #computes cost given predicted and actual values
     m = X.shape[0] #number of training examples
     theta = reshape(theta,(len(theta),1))
@@ -124,7 +132,7 @@ def compute_grad(theta, X, y):
         sumdelta = delta.T.dot(X[:, i])
         grad[i] = (1.0 / m) * sumdelta * - 1
     theta.shape = (3,)
-    return  grad
+    return grad
 
 def predict(theta, X):
     '''Predict whether the label
@@ -139,6 +147,6 @@ def predict(theta, X):
         else:
             p[it, 0] = 0
     return p
-#Compute accuracy on our training set
-p = predict(array(theta), it)
-print 'Train Accuracy: %f' % ((y[where(p == y)].size / float(y.size)) * 100.0)
+# #Compute accuracy on our training set
+# p = predict(array(theta), it)
+# print 'Train Accuracy: %f' % ((y[where(p == y)].size / float(y.size)) * 100.0)
