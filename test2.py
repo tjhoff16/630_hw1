@@ -51,7 +51,7 @@ Y = np.array(Y)
 matrix = csr_matrix((data, indices, indptr), dtype=int)
 # print (matrix.toarray(), matrix.shape)
 def log_likelihood(features, target, weights):
-    scores = np.dot(features, weights)
+    scores = np.dot(weights, features)
     ll = np.sum( target*scores - np.log(1 + np.exp(scores)) )
     return ll
 
@@ -63,6 +63,8 @@ def sigmoid(z):
     #     array.append(float(1.0 / float((1.0 + exp(-1.0*element[2])))))
     # return np.array(array)
     return float(1.0 / float((1.0 + np.exp(-1.0*z))))
+print (matrix.shape[0])
+# print (log_likelihood(matrix, Y, np.zeros(matrix.shape[0])))
 
 def logistic_regression(features, target, steps, learning_rate, add_intercept = False):
     if add_intercept:
