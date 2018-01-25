@@ -21,35 +21,27 @@ def tokenize (st):
 fl = open_tsv('train.tsv')
 
 word_to_column={} #key,val == word, column
-indptr = [0] # a big list of row, col, count
-indices = [] # instance ids
-data=[]
+# indptr = [0] # a big list of row, col, count
+rows = []
+cols = []
+counts = []
 Y = []
-vocab = {}
 test = ["hello world hello", "goodbye cruel world"]
-for ID,d,clss in fl:
-    Y.append(clss)
-    tokens = tokenize(d)
-    for term in tokens:
-        index = vocab.setdefault(term, len(vocab))
-        indices.append(index)
-        data.append(1)
-        # print (index, indices, data)
-    indptr.append(len(indices))
-Y = np.array(Y)
-    # print (indptr)
-    # token_counts = Counter(tokens)
-    # for token, count in token_counts.items():
-    #     # col = word_to_column.get(token, (len(word_to_column)+1))
-    #     if token in word_to_column:
-    #         col = word_to_column[token]
-    #     else:
-    #         col = len(word_to_column)
-    #         word_to_column[token] = col
-    #     A.append((int(ID), col, count))
+for row,(ID,text,clss) in enumerate(fl):
+    Y.append(int(clss))
+    tokens=tokenize(text)
+    token_counts = Counter(tokens)
+    for token, count in token_counts.items():
+        if token in word_to_column:
+            col = word_to_column[token]
+        else:
+            col = len(word_to_column)
+            word_to_column[token] = col
+        rows.append(row)
+        cols.append(col)
+        counts.append(count)
 
-matrix = csr_matrix((data, indices, indptr), dtype=int)
-# print (matrix.toarray(), matrix.shape)
+matrix = csr_matrix((counts, (rows, cols)), dtype=int)
 def log_likelihood(features, target, weights):
     scores = np.dot(weights, features)
     ll = np.sum( target*scores - np.log(1 + np.exp(scores)) )
@@ -63,12 +55,12 @@ def sigmoid(z):
     #     array.append(float(1.0 / float((1.0 + exp(-1.0*element[2])))))
     # return np.array(array)
     return float(1.0 / float((1.0 + np.exp(-1.0*z))))
-print (matrix.shape[0])
+# print (matrix.shape[0])
 # print (log_likelihood(matrix, Y, np.zeros(matrix.shape[0])))
 
 def logistic_regression(features, target, steps, learning_rate, add_intercept = False):
     if add_intercept:
-        intercept = np.ones((features.shape[0], 1))
+        intercept = np.ones((1, features.shape[0]))
         print (intercept.shape, features.shape)
         features = np.hstack((intercept, features))
 

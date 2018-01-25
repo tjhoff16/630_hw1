@@ -1,6 +1,11 @@
-import csv, math, sys, plotly, string, re
+import csv, math, sys
 import numpy as np
+import string
 from sklearn.metrics import f1_score
+import re
+import plotly
+import plotly.plotly as py
+import plotly.graph_objs as go
 
 class TSV_row():
     def __init__(self, row, bt=False):
@@ -20,7 +25,7 @@ def open_tsv(fl):
     rdata=[]
     f= open (fl, 'r', encoding='utf-8')
     for r in f.readlines(): rdata.append(re.split('\t', r.replace('\n', '')))
-    print (len(rdata))
+    # print (len(rdata))
     return rdata
 
 def tokenize (st):
@@ -41,7 +46,7 @@ def train(tweets, smoothing_alpha=0):
     hct = sum(hate_words.values())
     pH, pNH = ct/tot, (tot-ct)/tot
     total_words = len({**hate_words, **not_hate_words})
-    print (total_words)
+    # print (total_words)
     return total_words, pH, pNH, hct, nhct, not_hate_words, hate_words, smoothing_alpha
 
 def pWord(word, hate, smoothing_alpha):
@@ -76,31 +81,32 @@ fl = open_tsv('train.tsv')
 wds = generate_list_of_instances(fl, better_tokenize=True)
 ffl = open_tsv('dev.tsv')
 tts = generate_list_of_instances(ffl, better_tokenize=True)
-rng=.6
-total_words, pH, pNH, hct, nhct, nhw, hw, sma = train(wds, smoothing_alpha=rng)
-y_true=[]
-y_pred=[]
-tot_right=0
-tt=0
-for e in tts:
-    x = np.array(classify(e, pH, pNH, smoothing_alpha=rng, testing=True))
-    y_true.append(x[1])
-    tt+=1
-    if x[3]=='match':
-        tot_right+=1
-        y_pred.append(x[1])
-    else:
-        if x[1] == '1': y_pred.append(0)
-        else: y_pred.append(1)
-score = f1_score(y_true, y_pred, average='weighted')
-print (score, rng, total_words, tot_right)
-
-val = max(hw.values())
-for k,v in hw.items():
-    if v == val:
-        print (k, v)
-
-
+rngs=np.arange(0.05, 1.05, 0.05)
+f1s=[]
+smas=[]
+for rng in rngs:
+    total_words, pH, pNH, hct, nhct, nhw, hw, sma = train(wds, smoothing_alpha=rng)
+    y_true=[]
+    y_pred=[]
+    tot_right=0
+    tt=0
+    for e in tts:
+        x = np.array(classify(e, pH, pNH, smoothing_alpha=rng, testing=True))
+        y_true.append(x[1])
+        tt+=1
+        if x[3]=='match':
+            tot_right+=1
+            y_pred.append(x[1])
+        else:
+            if x[1] == '1': y_pred.append(0)
+            else: y_pred.append(1)
+    score = f1_score(y_true, y_pred, average='weighted')
+    f1s.append(score)
+    smas.append(rng)
+    print (score, rng, total_words, tot_right)
+# print (f1s, smas)
+# data = [go.Scatter(x=smas, y=f1s, mode='markers')]
+# py.iplot(data,filename='scatterplotf0.05.html')
 
 #
 # def sigmoid(X):
